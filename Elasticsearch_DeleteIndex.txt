@@ -1,0 +1,99 @@
+砞﹚┮Τ template 箇砞ǐ Hot
+
+PUT
+http://172.16.160.91:9200/_template/*
+
+{
+    "template" : "*",
+    "settings" :{
+    "index": {        
+        "routing.allocation.require.box_type": "hot",
+        "unassigned.node_left.delayed_timeout": "10m"
+    }
+    }
+}
+
+
+===
+
+砞﹚┮Τ Index 常メ Hot node
+
+PUT
+
+http://172.16.160.92:9200/_all/_settings
+
+{
+    "index.routing.allocation.require.box_type": "hot"  
+}
+
+===
+
+砞﹚疭﹚ Index 常メ Hot node
+
+PUT
+
+http://172.16.160.92:9200/winlogbeat-2017.12.05/_settings
+{  
+  "index.routing.allocation.include.box_type" : "hot"
+}
+===
+砞﹚┮Τ Index Shards assigned to Nodes, ┑筐 10 だ牧
+
+PUT
+
+http://172.16.160.92:9200/_all/_settings
+
+
+{
+    "index.unassigned.node_left.delayed_timeout": "10m"  
+}
+
+===
+砞﹚ Index  Replica 计ヘ
+
+http://172.16.160.91:9200/packetbeat-2017.12.05/_settings
+
+{ 
+	"index.number_of_replicas" : 1 
+
+}
+
+===
+
+琩┮Τ index 篈:
+	http://172.16.160.91:9200/_cat/indices?v
+=>
+health status index                      uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+green  open   iis-2017.01.01       zJwpBz8ETPqtCxOT0GXJVw   5   1      58523            0     79.7mb         39.8mb
+green  open   winevt-2017.01.01  d2jxOqDYTyiFU5iXKZiASQ   5   1       4469            0       19mb          9.5mb
+green  open   winevt-2017.01.01  t33hAMcqRUGAlDXNezPq7Q   5   1         30            0    805.8kb        402.9kb
+
+===
+
+Elassticsearch 璶秨 CORSぃ璶ㄏノ POSTMANぃ礛 Elasticsearch 穦莱 403 Forbidden
+
+
+===
+
+琩高 Node 砞﹚
+
+GET
+http://172.16.160.92:9200/_nodes/data:true
+
+===
+
+琩高 Index Allocation 砞﹚
+
+GET
+
+http://172.16.160.91:9200/_cluster/allocation/explain
+
+
+===
+
+[DELETE]
+http://172.16.160.91:9200/wineventlog-51-2017.09*
+
+
+[DELETE]
+http://172.16.160.91:9200/iis-2017.01.*,-iis-2017.01.30

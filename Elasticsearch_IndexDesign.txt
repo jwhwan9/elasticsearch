@@ -1,0 +1,130 @@
+Elasticsearch:
+
+特色:
+	-全文檢索 (例如: 在 Wiki 上搜尋關鍵字，關聯度最高的文章)
+	-資料聚合 (跨資料來源(設備)，資料屬性，進行資料聚合統計)
+
+說明:
+	-An Elasticsearch index is a logical namespace to organize your data (like a database).
+	-An Elasticsearch index has one or more shards (default is 5).
+	-A shard is a Lucene index which actually stores the data and is a search engine in itself.
+	-Each shard can have zero or more replicas (default is 1).
+	-An Elasticsearch index also has 「types」 (like tables in a database) which allow you to logically partition your data in an index.
+	-All documents in a given 「type」 in an Elasticsearch index have the same properties (like schema for a table).
+
+Elasticsearch vs 關聯式資料庫(Relational databse)
+	.Index ~ Database
+
+	.Types ~ Tables
+
+	.Mapping ~ Schema
+
+Cluster Nodes 種類:
+	.[Master Node]
+	 -Cluster 協調者:
+		.create/delete index
+		.cluster node 新加入或離開
+		.shards 被 assigned 到哪個 node
+
+	-上線用的 cluster，建議使用獨立且不包含其他功能的 master node
+
+
+	.[Data Node]
+	 -實際儲存資料 及 進行 Inverted Index 工作
+
+	.[Client Node]
+	 -Cluster loadbalancer 角色，用來 Routing request ， 並且導向不同的 Cluster Nodes.
+
+
+
+[Index 設計目標]
+
+	1. [最小化 Reindexing 時間]
+
+	2. [保留彈性供 Document 內容異動]
+
+	3. [高效率查詢]
+
+	4. [無須重建 Index 又能兼顧延展性]
+
+[Index Design 最佳實務]
+
+	[心法]
+
+	.別把 Elasticsearch 看成資料庫
+	.了解專案的資料特性與應用情境
+	.注意資料的組織
+	.適時使用 Replica 
+	
+	[實務]
+	1. [別把 Elasticsearch 看成資料庫]
+
+	-Elasticsearch: it's not a database!
+
+	-速度重於資料安全性，一致性。
+	 Rather than focusing on data integrity, [Lucene] is focused on speed (see the inverted index). 
+         Data is not stored for redundancy and resiliency, but for speed.
+  	 As a result, Lucene indices are more susceptible to corruption and data loss.
+
+	-
+	 creating an index in Elasticsearch involves defining a logical namespace, 
+	 which is assigned one or more shards across the cluster. 
+	 Each shard is actually a Lucene instance.
+
+	 When you query the index, Elasticsearch handles the task of routing the request to the proper shards, 
+	 which then perform the query locally, before returning the results to the coordinator, 
+	 where they are collated, analyzed, then returned to the user.
+
+	2. [保留彈性供 Document 內容異動]
+	
+	 不同的目的有著不同的需求規格: 要做甚麼應用: (分析 Log) or (產品搜尋) or (社群媒體使用者行為分析)
+
+	 以 [Time-based data] 舉例:
+	 如果資料室以時間軸(Time-based)為導向的 events log ，那應該考慮 xxx(避免單一且巨量的 index)xxx，
+	 應該以類似 '-YYY.MM.DD' 為結尾的 index 名稱，來為 index 分群命名。
+
+In practice, the older an event is, the less likely it is to be relevant to our immediate interests. By indexing this way, we can get better response times for recent events and have the flexibility to close indices after a certain time frame. An index that is a month old can be closed, thereby freeing up system resources while keeping the data handy. If there's ever a need to search for events older than a month, those indices can simply be re-opened, queried, then closed again.
+
+In practice, it's a good idea to start with a shard per day, and increase the frequency of shard creation if once per day is "hot" enough to demand it.
+
+
+	3. [注意資料的組織]
+
+	 .考慮資料的使用情境後，應該在抽象層次上理解資料組成的方式。
+	 .接下來應該了解實際上資料會如何被 Cluster 切割與儲存。
+	 .將資料切割成幾分 Primary Shards 分散於 cluster 能有效的改善 Indexing 效能
+	 .將每個 Primary Shard 分散在不同的 Nodes 上，能取得最基本的 Load Balance.
+	 .如果要極大化硬體配置，甚至考慮切割出更多 Shards，假設共有 3 個 Nodes，一個 Node 上有 8 個 CPUs，
+	  則分割出 24 個 Primary Shards (8 shards per node)。
+
+if you are starting with a 3 node cluster with plans to eventually scale to a 5 node cluster, limit the index to 15 primary shards. This will have you start off with 5 primary shards per node, which will drop to 3 primary shards per node when you add the next two nodes to the cluster. Maxing out the primary shards on the 3 node cluster, then adding two nodes will cause the load will be uneven.
+
+	4. [適時使用 Replica]
+
+	 .Replication 是 Elasticsearch 另一個殺手級的特色。此功能提供 Shards 複製分片備份於 Cluster 中的某個地方。
+          如果有一個 Node 壞了，資料並部會遺失，因為相關的 Primary Shards 備份在其他的 Cluster Nodes上面。
+	  [Replicas 的好處] 是: 可隨時新增或移除 且 用來讀取資料，查詢作業也能分散 loading
+
+	  *A single replica is all you need for basic redundancy, but you can gain the benefit of additional search throughput by adding more replicas.
+
+	  *You could also consider using search routing preference to make efficient reuse of filter caches. Queries to an Elasticsearch index must hit every shard in the index, which can introduce additional latency to the response time. By setting up custom routing, Elasticsearch only needs to hit one shard, which gives a noticable performance boost. When combined with smart use of replication, this strategy maximizes your search performance. See this post on the Elasticsearch blog for more info.	
+
+	5. [資料規模評估]
+
+	 .先建立基礎的 Cluster 架構
+	 .慢慢新增資料，直到 Cluster 失能 (失能定義: 不 work 或 最長的查詢等待時間，已經超過 Spec 定義)
+
+	 *(1) (資料來源+20%: 建立 index 的 overhead) data footprint of the experimental shard, 
+          look at the total amount of production data you need to index, then add 20%. 
+	  From this, divide by the data footprint of the experimental shard. 
+	  This will give you a rough estimate of how many primary shards you'll need for your index.
+
+	  (2) (乘上 Replica Shards 倍數) multiply the number of primary shards by the number of replicas you want in order to get the total number of replicas you'll need. 
+	  Add these two numbers together to get the total number of shards.
+
+	  (3) (再乘上 2.5: Index Merge/Maintain所需空間) 
+	  Multiply the total number of shards you'll need by the data footprint of the experimental shard. 
+	  That will give you the data footprint of your cluster. Finally, multiply that number by 2.5 to account for the overhead of large merges and other index maintenance. 
+	  This will tell you the total amount of data you'll need for your cluster.
+
+

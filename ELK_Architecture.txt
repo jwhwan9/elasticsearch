@@ -1,0 +1,54 @@
+[Master Nodes]: 3 個
+	-腦裂參數: 2 (discovery.zen.minimum_master_nodes setting at 2)
+	-低規 CPU/RAM/Disk (SPIN)
+
+[Hot Nodes]: 4 個 VM + (2*Physical)
+	-高規 CPU/64GB RAM
+	-Disk (SSD) 
+	-Ingest Nodes
+
+	[elasticsearch.yml]
+	   .node.attr.box_type: hot
+
+[Warm Nodes]: 6 個 VM (3*Physical)
+	-高規 CPU/64GB RAM
+	-RAM/Disk (SPIN) 
+	[elasticsearch.yml]
+	   .node.attr.box_type: warm
+
+[Coordinating Nodes]
+
+[Ingest Nodes]
+
+
+[Elasticsearch] 預設所有 index template update 成為 Hot Node:
+{
+  "template" : "*",
+  "version" : 50001,
+  "settings" : {
+             "index.routing.allocation.require.box_type": "hot"
+ ...
+
+[Elasticsearch] 現存的 Index 要設定成為 Hot Node:
+
+PUT /logs_2016-12-26
+{
+  "settings": {
+    "index.routing.allocation.require.box_type": "hot"
+  }
+}
+
+
+
+[Elasticsearch] 舊資料，修改成 Warm Node
+
+PUT /logs_2016-12-26/_settings 
+{ 
+  "settings": { 
+    "index.routing.allocation.require.box_type": "warm"
+  } 
+}
+
+
+[Ref]:
+https://www.elastic.co/blog/hot-warm-architecture-in-elasticsearch-5-x
